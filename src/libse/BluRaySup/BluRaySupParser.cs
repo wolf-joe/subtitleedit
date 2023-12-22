@@ -26,6 +26,7 @@ using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
 using System.Text;
+using SkiaSharp;
 
 namespace Nikse.SubtitleEdit.Core.BluRaySup
 {
@@ -120,11 +121,11 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
             /// Decode caption from the input stream
             /// </summary>
             /// <returns>bitmap of the decoded caption</returns>
-            public static Bitmap DecodeImage(PcsObject pcs, IList<OdsData> data, List<PaletteInfo> palettes)
+            public static SKBitmap DecodeImage(PcsObject pcs, IList<OdsData> data, List<PaletteInfo> palettes)
             {
                 if (pcs == null || data == null || data.Count == 0)
                 {
-                    return new Bitmap(1, 1);
+                    return new SKBitmap(1, 1);
                 }
 
                 int w = data[0].Size.Width;
@@ -132,11 +133,11 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
 
                 if (w <= 0 || h <= 0 || data[0].Fragment.ImageBuffer.Length == 0)
                 {
-                    return new Bitmap(1, 1);
+                    return new SKBitmap(1, 1);
                 }
 
-                var bm = new FastBitmap(new Bitmap(w, h));
-                bm.LockImage();
+                var bm = new SKBitmap(w, h);
+                // bm.LockImage();
                 var pal = DecodePalette(palettes);
 
                 int ofs = 0;
@@ -170,7 +171,9 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
                                 {
                                     // 00 4x xx -> xxx zeroes
                                     size = ((b - 0x40) << 8) + (buf[index++] & 0xff);
-                                    var c = Color.FromArgb(pal.GetArgb(0));
+                                    // var c = Color.FromArgb(pal.GetArgb(0));
+                                    byte[] rgba = pal.GetRgba(0);
+                                    var c = new SKColor(rgba[0], rgba[1], rgba[2], rgba[3]);
                                     for (int i = 0; i < size; i++)
                                     {
                                         PutPixel(bm, ofs++, c);
@@ -186,7 +189,9 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
                                     // 00 8x yy -> x times value y
                                     size = (b - 0x80);
                                     b = buf[index++] & 0xff;
-                                    var c = Color.FromArgb(pal.GetArgb(b));
+                                    // var c = Color.FromArgb(pal.GetArgb(b));
+                                    byte[] rgba = pal.GetRgba(b);
+                                    var c = new SKColor(rgba[0], rgba[1], rgba[2], rgba[3]);
                                     for (int i = 0; i < size; i++)
                                     {
                                         PutPixel(bm, ofs++, c);
@@ -202,7 +207,9 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
                                     // 00 cx yy zz -> xyy times value z
                                     size = ((b - 0xC0) << 8) + (buf[index++] & 0xff);
                                     b = buf[index++] & 0xff;
-                                    var c = Color.FromArgb(pal.GetArgb(b));
+                                    // var c = Color.FromArgb(pal.GetArgb(b));
+                                    byte[] rgba = pal.GetRgba(b);
+                                    var c = new SKColor(rgba[0], rgba[1], rgba[2], rgba[3]);
                                     for (int i = 0; i < size; i++)
                                     {
                                         PutPixel(bm, ofs++, c);
@@ -214,7 +221,9 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
                             else
                             {
                                 // 00 xx -> xx times 0
-                                var c = Color.FromArgb(pal.GetArgb(0));
+                                // var c = Color.FromArgb(pal.GetArgb(0));
+                                byte[] rgba = pal.GetRgba(0);
+                                var c = new SKColor(rgba[0], rgba[1], rgba[2], rgba[3]);
                                 for (int i = 0; i < b; i++)
                                 {
                                     PutPixel(bm, ofs++, c);
@@ -231,23 +240,26 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
                     }
                 } while (index < buf.Length);
 
-                bm.UnlockImage();
-                return bm.GetBitmap();
+                // bm.UnlockImage();
+                return bm;
             }
 
-            private static void PutPixel(FastBitmap bmp, int index, int color, BluRaySupPalette palette)
+            private static void PutPixel(SKBitmap bmp, int index, int color, BluRaySupPalette palette)
             {
                 int x = index % bmp.Width;
                 int y = index / bmp.Width;
                 if (x < bmp.Width && y < bmp.Height)
                 {
-                    bmp.SetPixel(x, y, Color.FromArgb(palette.GetArgb(color)));
+                    // bmp.SetPixel(x, y, Color.FromArgb(palette.GetArgb(color)));
+                    byte[] rgba = palette.GetRgba(color);
+                    var c = new SKColor(rgba[0], rgba[1], rgba[2], rgba[3]);
+                    bmp.SetPixel(x, y, c);
                 }
             }
 
-            private static void PutPixel(FastBitmap bmp, int index, Color color)
+            private static void PutPixel(SKBitmap bmp, int index, SKColor color)
             {
-                if (color.A > 0)
+                if (color.Alpha > 0)
                 {
                     int x = index % bmp.Width;
                     int y = index / bmp.Width;
@@ -283,7 +295,8 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
             {
                 if (PcsObjects.Count == 1)
                 {
-                    return SupDecoder.DecodeImage(PcsObjects[0], BitmapObjects[0], PaletteInfos);
+                    // return SupDecoder.DecodeImage(PcsObjects[0], BitmapObjects[0], PaletteInfos);
+                    return null;
                 }
 
                 var r = Rectangle.Empty;
@@ -305,7 +318,7 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
                         using (var singleBmp = SupDecoder.DecodeImage(PcsObjects[ioIndex], BitmapObjects[ioIndex], PaletteInfos))
                         using (var gSideBySide = Graphics.FromImage(mergedBmp))
                         {
-                            gSideBySide.DrawImage(singleBmp, offset.X, offset.Y);
+                            // gSideBySide.DrawImage(singleBmp, offset.X, offset.Y);
                         }
                     }
                 }

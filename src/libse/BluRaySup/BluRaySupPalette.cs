@@ -265,6 +265,15 @@ namespace Nikse.SubtitleEdit.Core.BluRaySup
             return ((_a[index] & 0xff) << 24) | ((_r[index] & 0xff) << 16) | ((_g[index] & 0xff) << 8) | (_b[index] & 0xff);
         }
 
+        public byte[] GetRgba(int index)
+        {
+            byte a = ((byte)(_a[index] & 0xff));
+            byte r = (byte)(_r[index] & 0xff) ;
+            byte g = (byte)(_g[index] & 0xff);
+            byte b = (byte)(_b[index] & 0xff);
+            return new byte[] { a, r, g, b };
+        }
+
         internal void SetColor(int index, System.Drawing.Color color)
         {
             SetRgb(index, color.R, color.G, color.B);
