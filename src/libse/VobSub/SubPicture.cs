@@ -1,4 +1,5 @@
 ﻿using Nikse.SubtitleEdit.Core.Common;
+using SkiaSharp;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -68,14 +69,21 @@ namespace Nikse.SubtitleEdit.Core.VobSub
         /// <returns>Subtitle image</returns>
         public Bitmap GetBitmap(List<Color> colorLookupTable, Color background, Color pattern, Color emphasis1, Color emphasis2, bool useCustomColors, bool crop = true)
         {
+            throw new Exception("not support");
+            //var fourColors = new List<Color> { background, pattern, emphasis1, emphasis2 };
+            //return ParseDisplayControlCommands(true, colorLookupTable, fourColors, useCustomColors, crop);
+        }
+
+        public SKBitmap GetBitmap2(List<Color> colorLookupTable, Color background, Color pattern, Color emphasis1, Color emphasis2, bool useCustomColors, bool crop = true)
+        {
             var fourColors = new List<Color> { background, pattern, emphasis1, emphasis2 };
             return ParseDisplayControlCommands(true, colorLookupTable, fourColors, useCustomColors, crop);
         }
 
-        private Bitmap ParseDisplayControlCommands(bool createBitmap, List<Color> colorLookUpTable, List<Color> fourColors, bool useCustomColors, bool crop)
+        private SKBitmap ParseDisplayControlCommands(bool createBitmap, List<Color> colorLookUpTable, List<Color> fourColors, bool useCustomColors, bool crop)
         {
             ImageDisplayArea = new Rectangle();
-            Bitmap bmp = null;
+            SKBitmap bmp = null;
             var displayControlSequenceTableAddresses = new List<int>();
             int imageTopFieldDataAddress = 0;
             int imageBottomFieldDataAddress = 0;
@@ -228,21 +236,22 @@ namespace Nikse.SubtitleEdit.Core.VobSub
             }
         }
 
-        private Bitmap GenerateBitmap(Rectangle imageDisplayArea, int imageTopFieldDataAddress, int imageBottomFieldDataAddress, List<Color> fourColors, bool crop)
+        private SKBitmap GenerateBitmap(Rectangle imageDisplayArea, int imageTopFieldDataAddress, int imageBottomFieldDataAddress, List<Color> fourColors, bool crop)
         {
             if (imageDisplayArea.Width <= 0 || imageDisplayArea.Height <= 0)
             {
-                return new Bitmap(1, 1);
+                return new SKBitmap(1, 1);
             }
 
-            var bmp = new Bitmap(imageDisplayArea.Width + 1, imageDisplayArea.Height + 1);
+            var bmp = new SKBitmap(imageDisplayArea.Width + 1, imageDisplayArea.Height + 1);
             if (fourColors[0] != Color.Transparent)
             {
-                var gr = Graphics.FromImage(bmp);
-                gr.FillRectangle(new SolidBrush(fourColors[0]), new Rectangle(0, 0, bmp.Width, bmp.Height));
-                gr.Dispose();
+                throw new Exception("not support");
+                // var gr = Graphics.FromImage(bmp);
+                // gr.FillRectangle(new SolidBrush(fourColors[0]), new Rectangle(0, 0, bmp.Width, bmp.Height));
+                // gr.Dispose();
             }
-            var fastBmp = new FastBitmap(bmp);
+            var fastBmp = new FastBitmap2(bmp);
             fastBmp.LockImage();
             GenerateBitmap(_data, fastBmp, 0, imageTopFieldDataAddress, fourColors, 2);
             GenerateBitmap(_data, fastBmp, 1, imageBottomFieldDataAddress, fourColors, 2);
@@ -251,7 +260,16 @@ namespace Nikse.SubtitleEdit.Core.VobSub
             return cropped;
         }
 
-        private static Bitmap CropBitmapAndUnlock(FastBitmap bmp, Color backgroundColor, bool crop)
+        private static SKColor Color2SKColor(Color c)
+        {
+            return new SKColor(c.R, c.G, c.B, c.A);
+        }
+        private static Color SKColor2Color(SKColor c)
+        {
+            return Color.FromArgb(c.Alpha, c.Red, c.Green, c.Blue);
+        }
+
+        private static SKBitmap CropBitmapAndUnlock(FastBitmap2 bmp, Color backgroundColor, bool crop)
         {
             var y = 0;
             var c = backgroundColor;
@@ -267,12 +285,12 @@ namespace Nikse.SubtitleEdit.Core.VobSub
                 int x;
                 while (y < bmp.Height && IsBackgroundColor(c))
                 {
-                    c = bmp.GetPixel(0, y);
+                    c = SKColor2Color(bmp.GetPixel(0, y));
                     if (IsBackgroundColor(c))
                     {
                         for (x = 1; x < bmp.Width; x++)
                         {
-                            c = bmp.GetPixelNext();
+                            c = SKColor2Color(bmp.GetPixelNext());
                             if (c.A > 1)
                             {
                                 break;
@@ -301,7 +319,7 @@ namespace Nikse.SubtitleEdit.Core.VobSub
                 {
                     for (y = minY; y < bmp.Height; y++)
                     {
-                        c = bmp.GetPixel(x, y);
+                        c = SKColor2Color(bmp.GetPixel(x, y));
                         if (!IsBackgroundColor(c))
                         {
                             break;
@@ -327,12 +345,12 @@ namespace Nikse.SubtitleEdit.Core.VobSub
                 c = backgroundColor;
                 while (y > minY && IsBackgroundColor(c))
                 {
-                    c = bmp.GetPixel(0, y);
+                    c = SKColor2Color(bmp.GetPixel(0, y));
                     if (IsBackgroundColor(c))
                     {
                         for (x = 1; x < bmp.Width; x++)
                         {
-                            c = bmp.GetPixelNext();
+                            c = SKColor2Color(bmp.GetPixelNext());
                             if (!IsBackgroundColor(c))
                             {
                                 break;
@@ -357,7 +375,7 @@ namespace Nikse.SubtitleEdit.Core.VobSub
                 {
                     for (y = minY; y < bmp.Height; y++)
                     {
-                        c = bmp.GetPixel(x, y);
+                        c = SKColor2Color(bmp.GetPixel(x, y));
                         if (!IsBackgroundColor(c))
                         {
                             break;
@@ -379,11 +397,17 @@ namespace Nikse.SubtitleEdit.Core.VobSub
             var bmpImage = bmp.GetBitmap();
             if (bmpImage.Width > 1 && bmpImage.Height > 1 && maxX - minX > 0 && maxY - minY > 0)
             {
-                var bmpCrop = bmpImage.Clone(new Rectangle(minX, minY, maxX - minX, maxY - minY), bmpImage.PixelFormat);
+                SKRectI cropRect = new SKRectI(minX, minY, maxX, maxY);
+                SKBitmap bmpCrop = new SKBitmap(cropRect.Width, cropRect.Height, bmpImage.ColorType, bmpImage.AlphaType);
+                using (var canvas = new SKCanvas(bmpCrop))
+                {
+                    canvas.DrawBitmap(bmpImage, cropRect, new SKRect(0, 0, cropRect.Width, cropRect.Height));
+                }
+                //var bmpCrop = bmpImage.Clone(new Rectangle(minX, minY, maxX - minX, maxY - minY), bmpImage.PixelFormat);
                 return bmpCrop;
             }
 
-            return (Bitmap)bmpImage.Clone();
+            return bmpImage.Copy();
         }
 
         private static bool IsBackgroundColor(Color c)
@@ -391,7 +415,7 @@ namespace Nikse.SubtitleEdit.Core.VobSub
             return c.A < 2;
         }
 
-        public static void GenerateBitmap(byte[] data, FastBitmap bmp, int startY, int dataAddress, List<Color> fourColors, int addY)
+        public static void GenerateBitmap(byte[] data, FastBitmap2 bmp, int startY, int dataAddress, List<Color> fourColors, int addY)
         {
             var index = 0;
             var onlyHalf = false;
@@ -410,13 +434,14 @@ namespace Nikse.SubtitleEdit.Core.VobSub
                 }
 
                 var c = fourColors[color]; // set color via the four colors
+                var cc = Color2SKColor(c);
                 for (var i = 0; i < runLength; i++, x++)
                 {
                     if (x >= bmp.Width - 1)
                     {
                         if (y < bmp.Height && x < bmp.Width && c != fourColors[0])
                         {
-                            bmp.SetPixel(x, y, c);
+                            bmp.SetPixel(x, y, cc);
                         }
 
                         if (onlyHalf)
@@ -431,7 +456,7 @@ namespace Nikse.SubtitleEdit.Core.VobSub
 
                     if (y < bmp.Height && c.ToArgb() != colorZeroValue)
                     {
-                        bmp.SetPixel(x, y, c);
+                        bmp.SetPixel(x, y, cc);
                     }
                 }
             }
